@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Car, Moon, GraduationCap, Dumbbell, MapPin, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { Save, RotateCcw, Car, Moon, GraduationCap, Dumbbell, MapPin, Plus, Trash2, CheckCircle2, Download, Upload } from 'lucide-react';
 import type { UserSettings } from '../types';
 
 interface SettingsProps {
@@ -11,6 +11,7 @@ interface SettingsProps {
 export const SettingsComponent: React.FC<SettingsProps> = ({ settings, onSaveSettings, onResetDefaults }) => {
   const [form, setForm] = useState<UserSettings>({ ...settings });
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
 
   const [newClassName, setNewClassName] = useState('');
   const [newClassDay, setNewClassDay] = useState(2); // Martes
@@ -49,6 +50,55 @@ export const SettingsComponent: React.FC<SettingsProps> = ({ settings, onSaveSet
     return days[dayNum] || 'Día';
   };
 
+  // Export JSON backup
+  const handleExportBackup = () => {
+    const backupData = {
+      settings: form,
+      shifts: localStorage.getItem('rotativa_shifts') ? JSON.parse(localStorage.getItem('rotativa_shifts')!) : null,
+      completed: localStorage.getItem('rotativa_completed') ? JSON.parse(localStorage.getItem('rotativa_completed')!) : null
+    };
+
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'backup_rotativaflow.json';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setBackupMsg('Backup descargado como backup_rotativaflow.json');
+    setTimeout(() => setBackupMsg(null), 4000);
+  };
+
+  // Import JSON backup
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target?.result as string);
+        if (parsed.settings) {
+          setForm(parsed.settings);
+          onSaveSettings(parsed.settings);
+        }
+        if (parsed.shifts) {
+          localStorage.setItem('rotativa_shifts', JSON.stringify(parsed.shifts));
+        }
+        if (parsed.completed) {
+          localStorage.setItem('rotativa_completed', JSON.stringify(parsed.completed));
+        }
+        setBackupMsg('¡Copia de seguridad restaurada con éxito! Recargando...');
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        alert('El archivo de copia de seguridad no es válido.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <form onSubmit={handleSave} className="space-y-6 max-w-4xl mx-auto">
       
@@ -85,6 +135,13 @@ export const SettingsComponent: React.FC<SettingsProps> = ({ settings, onSaveSet
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>¡Parámetros guardados y cronograma actualizado exitosamente!</span>
+        </div>
+      )}
+
+      {backupMsg && (
+        <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+          <span>{backupMsg}</span>
         </div>
       )}
 
@@ -232,7 +289,6 @@ export const SettingsComponent: React.FC<SettingsProps> = ({ settings, onSaveSet
             <h3 className="font-bold text-white text-base">Cursada & Clases en Vivo</h3>
           </div>
 
-          {/* List of current classes */}
           <div className="space-y-2">
             {form.liveClasses.map((lc, index) => (
               <div
@@ -257,7 +313,6 @@ export const SettingsComponent: React.FC<SettingsProps> = ({ settings, onSaveSet
             ))}
           </div>
 
-          {/* Add new class form */}
           <div className="pt-3 border-t border-slate-800/80 space-y-2">
             <span className="text-[11px] font-semibold text-slate-400 block">Agregar nueva materia / clase:</span>
 
@@ -309,6 +364,31 @@ export const SettingsComponent: React.FC<SettingsProps> = ({ settings, onSaveSet
           </div>
         </div>
 
+      </div>
+
+      {/* Backup & Restore Bar */}
+      <div className="glass-panel rounded-2xl p-5 border border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h4 className="text-sm font-bold text-white">Copia de Seguridad de Configuración</h4>
+          <p className="text-xs text-slate-400">Descargá o restaurá tus parámetros y turnos en formato JSON.</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleExportBackup}
+            className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-all"
+          >
+            <Download className="w-3.5 h-3.5 text-indigo-400" />
+            Descargar Backup JSON
+          </button>
+
+          <label className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-all">
+            <Upload className="w-3.5 h-3.5 text-emerald-400" />
+            Restaurar JSON
+            <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
+          </label>
+        </div>
       </div>
 
     </form>
